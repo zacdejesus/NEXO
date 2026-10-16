@@ -1,5 +1,12 @@
-# Single place where all the layers get wired together (rule 3 of the assignment).
-# Phase 0 milestone: `python main.py` runs without errors.
+from dominio.herramientas import Calculadora, ConversorMoneda, BuscadorFAQ
+from dominio.modelos import ModeloReglas
+from servicios.agente import Agente
+from persistencia.repositorio_conversaciones import RepositorioConversaciones
+from persistencia.registro_uso import RegistroUso
+from presentacion.chat_consola import ChatConsola
 
 if __name__ == "__main__":
-    print("NEXO arranca correctamente")
+    herramientas = [Calculadora(), ConversorMoneda(), BuscadorFAQ()]
+    registro = RegistroUso("datos/uso.csv")
+    agente = Agente(ModeloReglas(), herramientas, registro)
+    ChatConsola(agente, RepositorioConversaciones(), registro).iniciar()
