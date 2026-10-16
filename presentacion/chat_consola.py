@@ -58,10 +58,13 @@ class ChatConsola:
         self._salida("╰──────────────────────────────────────╯")
 
     def _responder(self, texto):
+        resumida_antes = self._agente.conversacion.veces_resumida
         respuesta = self._agente.procesar(texto)
         for nombre, argumentos in self._agente.herramientas_usadas:
             args = ", ".join(f"{k}={v!r}" for k, v in argumentos.items())
             self._salida(f"🔧 {nombre}({args})")
+        if self._agente.conversacion.veces_resumida > resumida_antes:
+            self._salida("🗜 He resumido los mensajes antiguos para no superar el límite de tokens")
         self._salida(f"NEXO > {respuesta}")
 
     def _ejecutar_comando(self, texto):
