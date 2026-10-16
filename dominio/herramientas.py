@@ -95,10 +95,10 @@ class ConversorMoneda(Herramienta):
 
 class BuscadorFAQ(Herramienta):
     FAQ = {
-        "envio plazo dias tarda": "Los envíos tardan 24-48 h en península y 3-5 días en islas.",
-        "devolucion devolver garantia": "Tienes 30 días para devolver el producto sin dar explicaciones.",
-        "horario atencion abierto": "Atendemos de lunes a viernes de 9:00 a 18:00.",
-        "pago tarjeta bizum paypal": "Aceptamos tarjeta, Bizum y PayPal.",
+        "envio envios enviar plazo dias tarda tardan": "Los envíos tardan 24-48 h en península y 3-5 días en islas.",
+        "devolucion devoluciones devolver garantia": "Tienes 30 días para devolver el producto sin dar explicaciones.",
+        "horario horarios atencion abierto": "Atendemos de lunes a viernes de 9:00 a 18:00.",
+        "pago pagos pagar tarjeta bizum paypal": "Aceptamos tarjeta, Bizum y PayPal.",
     }
 
     def __init__(self):
