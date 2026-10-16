@@ -54,7 +54,7 @@ class ModeloReglas(Modelo):
         "eur": "EUR", "euro": "EUR", "euros": "EUR",
     }
     MONEDAS_DISPARADORAS = {"USD", "GBP", "JPY"}
-    PALABRAS_FAQ = ("envio", "devolver", "horario", "pago")
+    PALABRAS_FAQ = ("envi", "devol", "horario", "pag")  # stems: also match "enviar", "devolución", "pagar"
     SALUDOS = {"hola", "buenas", "buenos", "hey", "saludos"}
 
     def __init__(self):
