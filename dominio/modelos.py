@@ -8,8 +8,8 @@ def _normalizar(texto):
 
 
 def _numero(texto):
-    texto = texto.replace(",", ".")
-    return int(texto) if texto.isdigit() else float(texto)
+    valor = float(texto.replace(",", "."))
+    return int(valor) if valor.is_integer() else valor
 
 
 class Respuesta:
@@ -56,6 +56,12 @@ class ModeloReglas(Modelo):
     MONEDAS_DISPARADORAS = {"USD", "GBP", "JPY"}
     PALABRAS_FAQ = ("envi", "devol", "horario", "pag")  # stems: also match "enviar", "devolución", "pagar"
     SALUDOS = {"hola", "buenas", "buenos", "hey", "saludos"}
+    # Reto 4: "...y multiplícalo por 3", "...y réstale 5", "...divídelo entre 2"
+    PATRON_ENCADENADA = re.compile(
+        r"\b(multiplic|divid|sum|rest)\w*\s+(?:por|entre|a|le|en)?\s*(\d+(?:[.,]\d+)?)"
+    )
+    OPERADOR_ENCADENADO = {"multiplic": "*", "divid": "/", "sum": "+", "rest": "-"}
+    PATRON_RESULTADO = re.compile(r"=\s*(-?\d+(?:\.\d+)?)")
 
     def __init__(self):
         super().__init__("reglas")
@@ -66,7 +72,11 @@ class ModeloReglas(Modelo):
             return Respuesta(texto="No estoy seguro, ¿puedes reformularlo?")
         ultimo = mensajes[-1]
         if ultimo.rol == "herramienta":
-            return Respuesta(texto=self._frase_resultado(ultimo.contenido))
+            pregunta, resultados = self._turno_actual(mensajes)
+            siguiente = self._paso_encadenado(pregunta, resultados)
+            if siguiente is not None:
+                return siguiente
+            return Respuesta(texto=self._frase_final(resultados))
 
         texto = ultimo.contenido
         normal = _normalizar(texto)
@@ -102,6 +112,35 @@ class ModeloReglas(Modelo):
             return Respuesta(texto="¡Hola! Soy NEXO, ¿en qué te ayudo?")
 
         return Respuesta(texto="No estoy seguro, ¿puedes reformularlo?")
+
+    @staticmethod
+    def _turno_actual(mensajes):
+        """Last user message and the tool results that came after it."""
+        for i in range(len(mensajes) - 1, -1, -1):
+            if mensajes[i].rol == "usuario":
+                return mensajes[i].contenido, [m.contenido for m in mensajes[i + 1:] if m.rol == "herramienta"]
+        return "", [m.contenido for m in mensajes if m.rol == "herramienta"]
+
+    def _paso_encadenado(self, pregunta, resultados):
+        """Reto 4: if the question asks for a second operation, chain it onto the first result."""
+        if len(resultados) != 1 or resultados[0].startswith("Error"):
+            return None
+        operacion = self.PATRON_ENCADENADA.search(_normalizar(pregunta))
+        valor = self.PATRON_RESULTADO.search(resultados[0])
+        if not operacion or not valor:
+            return None
+        verbo, numero = operacion.groups()
+        return Respuesta(
+            herramienta="calculadora",
+            argumentos={"a": _numero(valor.group(1)), "b": _numero(numero),
+                        "operacion": self.OPERADOR_ENCADENADO[verbo]},
+        )
+
+    @classmethod
+    def _frase_final(cls, resultados):
+        if len(resultados) >= 2 and not any(r.startswith("Error") for r in resultados):
+            return f"Primero, {resultados[-2]}; después, {resultados[-1]}. ¿Necesitas algo más?"
+        return cls._frase_resultado(resultados[-1])
 
     @staticmethod
     def _frase_resultado(contenido):

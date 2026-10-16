@@ -56,29 +56,85 @@ class Mensaje:
 
 
 class Conversacion:
-    """Historial de mensajes con límite de tokens. La lista es privada."""
+    """Historial de mensajes con límite de tokens. La lista es privada.
 
-    def __init__(self, id=None, limite_tokens=500):
+    Reto 6: al superar el 80 % del límite, los mensajes antiguos se sustituyen
+    por un único mensaje-resumen y se conservan intactos los más recientes.
+    """
+
+    UMBRAL_RESUMEN = 0.8
+    MENSAJES_RECIENTES = 4
+    PROPORCION_RESUMEN = 0.25  # the summary uses at most 25 % of the limit
+    PREFIJO_RESUMEN = "[Resumen"
+
+    def __init__(self, id=None, limite_tokens=500, resumen_automatico=True):
         self.id = id or uuid.uuid4().hex[:8]
         self.__mensajes = []
         self._limite_tokens = limite_tokens
+        self._resumen_automatico = resumen_automatico
+        self._veces_resumida = 0
 
-    def _palabras(self):
-        return sum(len(m.contenido.split()) for m in self.__mensajes)
+    @property
+    def veces_resumida(self):
+        return self._veces_resumida
+
+    @staticmethod
+    def _tokens(mensajes):
+        return round(sum(len(m.contenido.split()) for m in mensajes) * 1.3)
 
     def agregar(self, mensaje):
-        palabras = self._palabras() + len(mensaje.contenido.split())
-        if round(palabras * 1.3) > self._limite_tokens:
+        candidatos = self.__mensajes + [mensaje]
+        resumida = False
+        if (self._resumen_automatico
+                and self._tokens(candidatos) > self._limite_tokens * self.UMBRAL_RESUMEN):
+            compactados = self._compactar(self.__mensajes, mensaje)
+            if compactados is not None:
+                candidatos = compactados + [mensaje]
+                resumida = True
+        if self._tokens(candidatos) > self._limite_tokens:
             raise LimiteContextoSuperado(
                 f"Se supera el límite de {self._limite_tokens} tokens de la conversación"
             )
-        self.__mensajes.append(mensaje)
+        self.__mensajes = candidatos  # only commit once we know it fits
+        if resumida:
+            self._veces_resumida += 1
+
+    def _compactar(self, mensajes, nuevo):
+        """Old messages -> one summary + the most recent ones. Keeps as many recent
+        messages as possible (MENSAJES_RECIENTES down to 2) while getting back under
+        the 80 % threshold. None if summarizing doesn't save anything."""
+        objetivo = self._limite_tokens * self.UMBRAL_RESUMEN
+        mejor = None
+        for recientes in range(self.MENSAJES_RECIENTES, 1, -1):
+            antiguos = mensajes[:-recientes]
+            if not antiguos:
+                continue
+            compactados = [self._resumir(antiguos)] + mensajes[-recientes:]
+            if self._tokens(compactados) >= self._tokens(mensajes):
+                continue  # the summary would be longer than what it replaces
+            mejor = compactados
+            if self._tokens(compactados + [nuevo]) <= objetivo:
+                break
+        return mejor
+
+    def _resumir(self, antiguos):
+        temas = []
+        for mensaje in antiguos:
+            if mensaje.contenido.startswith(self.PREFIJO_RESUMEN):
+                temas.append(mensaje.contenido.split("Temas: ", 1)[-1])  # carry the previous summary
+            elif mensaje.rol == "usuario":
+                temas.append(" ".join(mensaje.contenido.split()[:6]))
+        max_palabras = max(5, int(self._limite_tokens * self.PROPORCION_RESUMEN / 1.3))
+        palabras = "; ".join(temas).split()[-max_palabras:]  # keep the most recent topics
+        return Mensaje("asistente",
+                       f"{self.PREFIJO_RESUMEN} de {len(antiguos)} mensajes anteriores] "
+                       f"Temas: {' '.join(palabras) or 'sin preguntas del usuario'}")
 
     def get_mensajes(self):
         return list(self.__mensajes)
 
     def tokens_estimados(self):
-        return round(self._palabras() * 1.3)
+        return self._tokens(self.__mensajes)
 
     def __len__(self):
         return len(self.__mensajes)
