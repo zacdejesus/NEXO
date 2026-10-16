@@ -95,24 +95,259 @@ intactos los más recientes (hasta 4, o menos si hace falta para bajar del 80 %)
 
 ## Diagrama de clases
 
+**Notación** (UML):
+| Símbolo | Significado | En Python |
+|---|---|---|
+| `+` | público | `nombre` |
+| `#` | protegido | `_nombre` |
+| `-` | privado | `__nombre` (*name mangling*) |
+
+En el diagrama los nombres van sin el guion bajo inicial: lo indica el símbolo. `#ruta` es `_ruta` en el código y `-mensajes` es `__mensajes`.
+| `$` al final | de clase / estático | constantes de clase, `@staticmethod`, `@classmethod` |
+| `*` al final | abstracto | lanza `NotImplementedError`: cada hija lo implementa |
+| `(property)` | se lee como atributo | `@property` |
+| `NombreClase(...)` | constructor | `__init__(...)` |
+
+![Diagrama de clases de NEXO](docs/diagrama_clases.png)
+
+<details>
+<summary>Código Mermaid del diagrama (GitHub lo dibuja; también se puede pegar en mermaid.live)</summary>
+
 ```mermaid
 classDiagram
+    direction TB
+
+    %% =====================  PRESENTACIÓN  =====================
+    namespace Presentacion {
+        class ChatConsola {
+            +MODELOS : dict[str → type[Modelo]]$
+            #agente : Agente
+            #repositorio : RepositorioConversaciones | None
+            #registro : RegistroUso | None
+            #entrada : Callable = input
+            #salida : Callable = print
+            #activo : bool
+            #comandos : dict[str → Callable]
+            +ChatConsola(agente, repositorio=None, registro_uso=None, entrada=input, salida=print)
+            +iniciar() None
+            #banner() None
+            #responder(texto: str) None
+            #ejecutar_comando(texto: str) None
+            #cmd_herramientas(arg) None
+            #cmd_modelo(argumento: str) None
+            #cmd_salir(arg) None
+            #cmd_historial(arg) None
+            #hay_repositorio() bool
+            #cmd_guardar(arg) None
+            #cmd_cargar(argumento: str) None
+            #cmd_lista(arg) None
+            #cmd_nueva(arg) None
+            #cmd_stats(arg) None
+        }
+    }
+
+    %% =====================  SERVICIOS  =====================
+    namespace Servicios {
+        class Agente {
+            +MAX_ITERACIONES : int = 3$
+            +modelo : Modelo
+            +conversacion : Conversacion
+            #herramientas : dict[str → Herramienta]
+            #registro : RegistroUso | None
+            #llamadas : list[tuple]
+            +herramientas_usadas : list[tuple] (property)
+            +Agente(modelo, herramientas, registro_uso=None)
+            +procesar(texto_usuario: str) str
+            #ejecutar_herramienta(nombre: str, argumentos: dict) str
+            #registrar(nombre, argumentos, exito: bool, inicio: float) None
+            +listar_herramientas() list[str]
+            +cambiar_modelo(modelo: Modelo) None
+            +nueva_conversacion() None
+        }
+    }
+
+    %% =====================  DOMINIO  =====================
+    namespace Dominio {
+        class Mensaje {
+            +ROLES_VALIDOS : tuple = usuario, asistente, herramienta$
+            #rol : str
+            #contenido : str
+            #fecha : str ISO 8601
+            +rol : str (property)
+            +contenido : str (property)
+            +fecha : str (property)
+            +Mensaje(rol: str, contenido: str, fecha=None)
+            +#95;#95;str#95;#95;() str
+            +to_dict() dict
+            +from_dict(datos: dict) Mensaje$
+        }
+        class Conversacion {
+            +UMBRAL_RESUMEN : float = 0.8$
+            +MENSAJES_RECIENTES : int = 4$
+            +PROPORCION_RESUMEN : float = 0.25$
+            +PREFIJO_RESUMEN : str = [Resumen$
+            +id : str
+            -mensajes : list[Mensaje]
+            #limite_tokens : int = 500
+            #resumen_automatico : bool = True
+            #veces_resumida : int
+            +veces_resumida : int (property)
+            +Conversacion(id=None, limite_tokens=500, resumen_automatico=True)
+            +agregar(mensaje: Mensaje) None
+            +get_mensajes() list[Mensaje]
+            +tokens_estimados() int
+            +#95;#95;len#95;#95;() int
+            +to_dict() dict
+            +from_dict(datos: dict) Conversacion$
+            #tokens(mensajes: list) int$
+            #compactar(mensajes: list, nuevo: Mensaje) list | None
+            #resumir(antiguos: list) Mensaje
+        }
+        class Herramienta {
+            <<abstract>>
+            +nombre : str
+            +descripcion : str
+            +Herramienta(nombre: str, descripcion: str)
+            +ejecutar(kwargs) str*
+            +#95;#95;str#95;#95;() str
+        }
+        class Calculadora {
+            +OPERACIONES : tuple = + - * /$
+            +Calculadora()
+            +ejecutar(a, b, operacion) str
+        }
+        class ConversorMoneda {
+            +TASAS_A_EUR : dict = EUR 1.0, USD 0.92, GBP 1.17, JPY 0.0062$
+            +ConversorMoneda()
+            +ejecutar(cantidad, origen, destino) str
+        }
+        class BuscadorFAQ {
+            +FAQ : dict[claves → respuesta]$
+            +BuscadorFAQ()
+            +ejecutar(pregunta) str
+        }
+        class Modelo {
+            <<abstract>>
+            +nombre : str
+            +Modelo(nombre: str)
+            +responder(conversacion, herramientas) Respuesta*
+        }
+        class ModeloEco {
+            +ModeloEco()
+            +responder(conversacion, herramientas) Respuesta
+        }
+        class ModeloReglas {
+            +PATRON_OPERACION : Pattern$
+            +MONEDAS : dict[palabra → código]$
+            +MONEDAS_DISPARADORAS : set = USD, GBP, JPY$
+            +PALABRAS_FAQ : tuple = envi, devol, horario, pag$
+            +SALUDOS : set$
+            +PATRON_ENCADENADA : Pattern$
+            +OPERADOR_ENCADENADO : dict[verbo → operador]$
+            +PATRON_RESULTADO : Pattern$
+            +ModeloReglas()
+            +responder(conversacion, herramientas) Respuesta
+            #turno_actual(mensajes: list) tuple$
+            #paso_encadenado(pregunta: str, resultados: list) Respuesta | None
+            #frase_final(resultados: list) str$
+            #frase_resultado(contenido: str) str$
+        }
+        class Respuesta {
+            +texto : str | None
+            +herramienta : str | None
+            +argumentos : dict
+            +Respuesta(texto=None, herramienta=None, argumentos=None)
+            +es_llamada_herramienta() bool
+        }
+        class ErrorAgente {
+            <<exception>>
+        }
+        class HerramientaNoEncontrada {
+            <<exception>>
+        }
+        class ArgumentosInvalidos {
+            <<exception>>
+        }
+        class LimiteContextoSuperado {
+            <<exception>>
+        }
+        class ErrorPersistencia {
+            <<exception>>
+        }
+    }
+
+    %% =====================  PERSISTENCIA  =====================
+    namespace Persistencia {
+        class RepositorioConversaciones {
+            #ID_VALIDO : Pattern = A-Z a-z 0-9 _ -$
+            #carpeta : Path
+            +RepositorioConversaciones(carpeta=datos/conversaciones)
+            +guardar(conversacion: Conversacion) None
+            +cargar(id_conv: str) Conversacion
+            +listar() list[str]
+            #ruta(id_conv: str) Path
+        }
+        class RegistroUso {
+            +COLUMNAS : list = fecha, herramienta, argumentos, exito, milisegundos$
+            #ruta : Path
+            +RegistroUso(ruta=datos/uso.csv)
+            +registrar(herramienta, argumentos, exito, milisegundos) None
+            +resumen() dict
+        }
+    }
+
+    %% =====================  RELACIONES  =====================
+    %% Herencia
     Herramienta <|-- Calculadora
     Herramienta <|-- ConversorMoneda
     Herramienta <|-- BuscadorFAQ
     Modelo <|-- ModeloEco
     Modelo <|-- ModeloReglas
-    Modelo ..> Respuesta
-    Conversacion o-- Mensaje
-    Agente --> Modelo
-    Agente --> Herramienta
-    Agente --> Conversacion
-    Agente --> RegistroUso
-    ChatConsola --> Agente
-    ChatConsola --> RepositorioConversaciones
-    ChatConsola --> RegistroUso
-    RepositorioConversaciones ..> Conversacion
+    Exception <|-- ErrorAgente
+    ErrorAgente <|-- HerramientaNoEncontrada
+    ErrorAgente <|-- ArgumentosInvalidos
+    ErrorAgente <|-- LimiteContextoSuperado
+    ErrorAgente <|-- ErrorPersistencia
+
+    %% Composición, agregación y asociación
+    Agente "1" *-- "1" Conversacion : conversacion
+    Conversacion "1" *-- "0..*" Mensaje : __mensajes
+    Agente "1" o-- "1..*" Herramienta : _herramientas
+    Agente "1" --> "1" Modelo : modelo
+    Agente "1" --> "0..1" RegistroUso : _registro
+    ChatConsola "1" --> "1" Agente : _agente
+    ChatConsola "1" --> "0..1" RepositorioConversaciones : _repositorio
+    ChatConsola "1" --> "0..1" RegistroUso : _registro
+
+    %% Dependencias: crea, devuelve o lanza
+    Modelo ..> Respuesta : devuelve
+    Modelo ..> Conversacion : lee
+    ChatConsola ..> Modelo : crea con /modelo
+    RepositorioConversaciones ..> Conversacion : guarda / reconstruye
+    Herramienta ..> ArgumentosInvalidos : lanza
+    Conversacion ..> LimiteContextoSuperado : lanza
+    Agente ..> HerramientaNoEncontrada : lanza
+    Agente ..> ErrorAgente : lanza (más de 3 vueltas)
+    RepositorioConversaciones ..> ErrorPersistencia : lanza
+    RegistroUso ..> ErrorPersistencia : lanza
+    ChatConsola ..> ErrorAgente : captura
+
+    %% Notas
+    note for Agente "procesar(): bucle de hasta 3 vueltas<br>modelo → ¿herramienta? → ejecutar(**args) → modelo<br>Polimorfismo: nunca isinstance"
+    note for Conversacion "Reto 6: al superar el 80 % del límite,<br>los mensajes antiguos se sustituyen<br>por un mensaje-resumen"
+    note for ModeloReglas "Reto 4: tras el primer resultado detecta<br>«multiplícalo por / divídelo entre /<br>súmale / réstale» y encadena la calculadora"
+    note for Mensaje "Rol inválido → ValueError"
 ```
+
+</details>
+
+**Cómo leerlo:**
+- **Herencia** (`<|--`): las 3 herramientas y los 2 modelos heredan de una clase base **abstracta**. El agente los usa a través de esa base sin saber cuál es cuál (polimorfismo).
+- **Composición** (`*--`): las partes no existen fuera del todo. El `Agente` crea **su** `Conversacion`, y la `Conversacion` está formada por `Mensaje`s.
+- **Agregación** (`o--`): el `Agente` usa herramientas que se crean **fuera**, en `main.py`.
+- **Asociación** (`-->`): una clase guarda una referencia a otra. Los números indican cuántas (`0..1` es opcional).
+- **Dependencia** (`..>`): una clase crea, devuelve, lanza o captura algo de otra.
+- Las capas solo dependen hacia abajo: Presentación → Servicios → Dominio, y Persistencia → Dominio. `main.py` las conecta todas y no aparece porque no es una clase.
 
 ## Nivel alcanzado y uso de la IA
 
