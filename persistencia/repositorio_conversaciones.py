@@ -12,9 +12,11 @@ class RepositorioConversaciones:
 
     _ID_VALIDO = re.compile(r"[A-Za-z0-9_-]+")
 
+    # Guarda la carpeta donde se escriben los JSON.
     def __init__(self, carpeta="datos/conversaciones"):
         self._carpeta = Path(carpeta)
 
+    # Construye la ruta del archivo y comprueba que el id no se salga de la carpeta.
     def _ruta(self, id_conv):
         if not isinstance(id_conv, str) or not self._ID_VALIDO.fullmatch(id_conv):
             raise ErrorPersistencia(f"Identificador no válido: {id_conv!r}")
@@ -23,6 +25,7 @@ class RepositorioConversaciones:
             raise ErrorPersistencia(f"Identificador no válido: {id_conv!r}")
         return ruta
 
+    # Escribe la conversación en <id>.json (primero en un temporal, para no dejarlo a medias).
     def guardar(self, conversacion):
         ruta = self._ruta(conversacion.id)
         temporal = ruta.with_name(f".{ruta.name}.tmp")
@@ -34,6 +37,7 @@ class RepositorioConversaciones:
         except OSError as e:
             raise ErrorPersistencia(f"No se pudo guardar la conversación: {e}") from e
 
+    # Lee <id>.json y reconstruye la conversación; si algo falla, lanza ErrorPersistencia.
     def cargar(self, id_conv) -> Conversacion:
         ruta = self._ruta(id_conv)
         try:
@@ -50,6 +54,7 @@ class RepositorioConversaciones:
         except (ValueError, TypeError) as e:
             raise ErrorPersistencia(f"La conversación '{id_conv}' no es válida: {e}") from e
 
+    # Devuelve los ids de las conversaciones guardadas, ordenados.
     def listar(self) -> list[str]:
         try:
             if not self._carpeta.is_dir():

@@ -5,6 +5,7 @@ import unicodedata
 from dominio.excepciones import ArgumentosInvalidos
 
 
+# Convierte un argumento en número (acepta coma decimal) o lanza ArgumentosInvalidos.
 def _como_numero(valor, nombre):
     if valor is None:
         raise ArgumentosInvalidos(f"Falta el argumento '{nombre}'")
@@ -17,12 +18,14 @@ def _como_numero(valor, nombre):
     return numero
 
 
+# Muestra el número sin decimales si es entero (4.0 -> "4").
 def _formatear(numero):
     if numero == int(numero):
         return str(int(numero))
     return str(round(numero, 10))
 
 
+# Pasa el texto a minúsculas y le quita las tildes.
 def _normalizar(texto):
     sin_tildes = unicodedata.normalize("NFD", texto.lower())
     return "".join(c for c in sin_tildes if unicodedata.category(c) != "Mn")
@@ -31,13 +34,16 @@ def _normalizar(texto):
 class Herramienta:
     """Clase base de todas las herramientas que puede usar el agente."""
 
+    # Guarda el nombre y la descripción de la herramienta.
     def __init__(self, nombre, descripcion):
         self.nombre = nombre
         self.descripcion = descripcion
 
+    # Método abstracto: cada herramienta hija lo implementa.
     def ejecutar(self, **kwargs) -> str:
         raise NotImplementedError("Cada herramienta debe implementar ejecutar()")
 
+    # Texto con el que se muestra la herramienta en /herramientas.
     def __str__(self):
         return f"🔧 {self.nombre}: {self.descripcion}"
 
@@ -45,9 +51,11 @@ class Herramienta:
 class Calculadora(Herramienta):
     OPERACIONES = ("+", "-", "*", "/")
 
+    # Crea la calculadora con su nombre y descripción.
     def __init__(self):
         super().__init__("calculadora", "Operaciones aritméticas (+ - * /) entre dos números")
 
+    # Hace la operación entre a y b y devuelve un texto como "2 + 3 = 5".
     def ejecutar(self, **kwargs) -> str:
         a = _como_numero(kwargs.get("a"), "a")
         b = _como_numero(kwargs.get("b"), "b")
@@ -72,9 +80,11 @@ class Calculadora(Herramienta):
 class ConversorMoneda(Herramienta):
     TASAS_A_EUR = {"EUR": 1.0, "USD": 0.92, "GBP": 1.17, "JPY": 0.0062}
 
+    # Crea el conversor con su nombre y descripción.
     def __init__(self):
         super().__init__("conversor_moneda", "Convierte cantidades entre EUR, USD, GBP y JPY")
 
+    # Convierte la cantidad de la moneda de origen a la de destino, pasando por euros.
     def ejecutar(self, **kwargs) -> str:
         cantidad = _como_numero(kwargs.get("cantidad"), "cantidad")
         monedas = []
@@ -101,9 +111,11 @@ class BuscadorFAQ(Herramienta):
         "pago pagos pagar tarjeta bizum paypal": "Aceptamos tarjeta, Bizum y PayPal.",
     }
 
+    # Crea el buscador con su nombre y descripción.
     def __init__(self):
         super().__init__("buscador_faq", "Busca la respuesta en las preguntas frecuentes de TechNova")
 
+    # Devuelve la respuesta de la FAQ que más palabras comparte con la pregunta.
     def ejecutar(self, **kwargs) -> str:
         pregunta = kwargs.get("pregunta")
         if not isinstance(pregunta, str) or not pregunta.strip():
