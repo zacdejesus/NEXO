@@ -95,24 +95,109 @@ intactos los más recientes (hasta 4, o menos si hace falta para bajar del 80 %)
 
 ## Diagrama de clases
 
+Solo aparecen los métodos públicos principales. Los detalles están en el código de cada clase.
+
+![Diagrama de clases de NEXO](docs/diagrama_clases.png)
+
+<details>
+<summary>Código Mermaid (GitHub lo dibuja; también se puede pegar en mermaid.live)</summary>
+
 ```mermaid
 classDiagram
+    direction TB
+
+    class ChatConsola {
+        +iniciar()
+    }
+    class Agente {
+        +procesar(texto_usuario) str
+        +cambiar_modelo(modelo)
+        +nueva_conversacion()
+    }
+    class Conversacion {
+        +id : str
+        +agregar(mensaje)
+        +get_mensajes() list
+        +tokens_estimados() int
+    }
+    class Mensaje {
+        +rol : str
+        +contenido : str
+        +fecha : str
+    }
+    class Modelo {
+        <<abstract>>
+        +nombre : str
+        +responder(conversacion, herramientas) Respuesta
+    }
+    class ModeloEco
+    class ModeloReglas
+    class Respuesta {
+        +texto : str
+        +herramienta : str
+        +argumentos : dict
+    }
+    class Herramienta {
+        <<abstract>>
+        +nombre : str
+        +descripcion : str
+        +ejecutar(**kwargs) str
+    }
+    class Calculadora
+    class ConversorMoneda
+    class BuscadorFAQ
+    class RepositorioConversaciones {
+        +guardar(conversacion)
+        +cargar(id_conv) Conversacion
+        +listar() list
+    }
+    class RegistroUso {
+        +registrar(herramienta, argumentos, exito, milisegundos)
+        +resumen() dict
+    }
+    class ErrorAgente {
+        <<exception>>
+    }
+    class HerramientaNoEncontrada
+    class ArgumentosInvalidos
+    class LimiteContextoSuperado
+    class ErrorPersistencia
+
+    ChatConsola --> Agente
+    ChatConsola --> RepositorioConversaciones
+    ChatConsola ..> ErrorAgente : captura
+
+    Agente *-- Conversacion
+    Conversacion *-- Mensaje
+    Agente --> Modelo
+    Agente o-- Herramienta
+    Agente --> RegistroUso
+
+    Modelo <|-- ModeloEco
+    Modelo <|-- ModeloReglas
+    Modelo ..> Respuesta : devuelve
+
     Herramienta <|-- Calculadora
     Herramienta <|-- ConversorMoneda
     Herramienta <|-- BuscadorFAQ
-    Modelo <|-- ModeloEco
-    Modelo <|-- ModeloReglas
-    Modelo ..> Respuesta
-    Conversacion o-- Mensaje
-    Agente --> Modelo
-    Agente --> Herramienta
-    Agente --> Conversacion
-    Agente --> RegistroUso
-    ChatConsola --> Agente
-    ChatConsola --> RepositorioConversaciones
-    ChatConsola --> RegistroUso
-    RepositorioConversaciones ..> Conversacion
+
+    RepositorioConversaciones ..> Conversacion : guarda / carga
+
+    ErrorAgente <|-- HerramientaNoEncontrada
+    ErrorAgente <|-- ArgumentosInvalidos
+    ErrorAgente <|-- LimiteContextoSuperado
+    ErrorAgente <|-- ErrorPersistencia
 ```
+
+</details>
+
+**Cómo leerlo:**
+- **Herencia** (`<|--`): los 3 tipos de herramienta, los 2 modelos y las 4 excepciones heredan de su clase base. El agente usa herramientas y modelos a través de la base, sin saber cuál es cuál (polimorfismo).
+- **Composición** (`*--`): el `Agente` crea **su** `Conversacion`, y la `Conversacion` está formada por `Mensaje`s.
+- **Agregación** (`o--`): el `Agente` usa herramientas que se crean **fuera**, en `main.py`.
+- **Asociación** (`-->`): una clase guarda una referencia a otra.
+- **Dependencia** (`..>`): una clase devuelve, guarda o captura algo de otra.
+- Las capas solo dependen hacia abajo: Presentación → Servicios → Dominio, y Persistencia → Dominio. `main.py` las conecta todas.
 
 ## Nivel alcanzado y uso de la IA
 
