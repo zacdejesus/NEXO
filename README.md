@@ -206,9 +206,8 @@ classDiagram
   - El código del proyecto se generó con la IA a partir del enunciado.
   - El diagrama de clases: la IA hizo una primera versión detallada y después, a petición nuestra, una versión simplificada.
   - Los comentarios de una línea encima de cada función los añadió la IA.
-  - Las preguntas de reflexión: respondí con mis ideas y la IA me dio pistas sobre el código. Al final, por falta de tiempo, le pedí que redactara las respuestas ampliando lo que yo había contestado.
+  - Las preguntas de reflexión: respondí con mis ideas y la IA me dio pistas.
   - Lo usé también para entender conceptos (`@property`, dónde se crea el `Agente`, para qué sirve `ModeloEco`).
-  - **Pendiente:** qué cambiamos nosotros de lo que propuso la IA.
 
 ## Preguntas de reflexión de Zadkiel De Jesus
 
