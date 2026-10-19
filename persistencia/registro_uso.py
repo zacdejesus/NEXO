@@ -10,9 +10,11 @@ class RegistroUso:
 
     COLUMNAS = ["fecha", "herramienta", "argumentos", "exito", "milisegundos"]
 
+    # Guarda la ruta del archivo CSV.
     def __init__(self, ruta="datos/uso.csv"):
         self._ruta = Path(ruta)
 
+    # Añade una fila al CSV (y la cabecera si el archivo está vacío).
     def registrar(self, herramienta, argumentos, exito, milisegundos):
         try:
             self._ruta.parent.mkdir(parents=True, exist_ok=True)
@@ -31,6 +33,7 @@ class RegistroUso:
         except OSError as e:
             raise ErrorPersistencia(f"No se pudo escribir el registro de uso: {e}") from e
 
+    # Lee el CSV y cuenta los usos y fallos de cada herramienta.
     def resumen(self) -> dict:
         resumen = {"total": 0, "usos": {}, "fallos": {}}
         if not self._ruta.exists():

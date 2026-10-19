@@ -7,6 +7,7 @@ class ChatConsola:
 
     MODELOS = {"eco": ModeloEco, "reglas": ModeloReglas}
 
+    # Recibe el agente y lo opcional; entrada y salida se pueden cambiar en las pruebas.
     def __init__(self, agente, repositorio=None, registro_uso=None,
                  entrada=input, salida=print):
         self._agente = agente
@@ -27,6 +28,7 @@ class ChatConsola:
             "/stats": self._cmd_stats,
         }
 
+    # Bucle del chat: lee, ejecuta un comando o una pregunta y muestra los errores sin cerrarse.
     def iniciar(self):
         self._banner()
         self._activo = True
@@ -51,12 +53,14 @@ class ChatConsola:
             except Exception as e:  # el chat nunca se cierra por un fallo inesperado
                 self._salida(f"⚠ Error inesperado: {e}")
 
+    # Muestra el cartel de bienvenida.
     def _banner(self):
         self._salida("╭──────────────────────────────────────╮")
         self._salida("│ 🤖 NEXO · asistente de TechNova      │")
         self._salida("│ Escribe /herramientas o /salir       │")
         self._salida("╰──────────────────────────────────────╯")
 
+    # Envía el texto al agente y muestra las herramientas usadas y la respuesta.
     def _responder(self, texto):
         resumida_antes = self._agente.conversacion.veces_resumida
         respuesta = self._agente.procesar(texto)
@@ -67,6 +71,7 @@ class ChatConsola:
             self._salida("🗜 He resumido los mensajes antiguos para no superar el límite de tokens")
         self._salida(f"NEXO > {respuesta}")
 
+    # Separa el comando de su argumento y llama a la función que le toca.
     def _ejecutar_comando(self, texto):
         partes = texto.split(maxsplit=1)
         comando = partes[0].lower()
@@ -78,10 +83,12 @@ class ChatConsola:
         manejador(argumento)
 
     # --- Nivel 1 ---
+    # /herramientas: lista las herramientas disponibles.
     def _cmd_herramientas(self, _):
         for linea in self._agente.listar_herramientas():
             self._salida(linea)
 
+    # /modelo eco|reglas: cambia de modelo.
     def _cmd_modelo(self, argumento):
         clase = self.MODELOS.get(argumento.lower())
         if clase is None:
@@ -90,11 +97,13 @@ class ChatConsola:
         self._agente.cambiar_modelo(clase())
         self._salida(f"✔ Modelo cambiado a {clase.__name__}")
 
+    # /salir: termina el chat.
     def _cmd_salir(self, _):
         self._salida("👋 ¡Hasta pronto!")
         self._activo = False
 
     # --- Nivel 2 ---
+    # /historial: muestra los mensajes y los tokens estimados.
     def _cmd_historial(self, _):
         conversacion = self._agente.conversacion
         mensajes = conversacion.get_mensajes()
@@ -106,12 +115,14 @@ class ChatConsola:
         self._salida(f"Mensajes: {len(conversacion)} · "
                      f"Tokens estimados: {conversacion.tokens_estimados()}")
 
+    # Avisa y devuelve False si no hay persistencia.
     def _hay_repositorio(self):
         if self._repositorio is None:
             self._salida("⚠ La persistencia no está disponible.")
             return False
         return True
 
+    # /guardar: guarda la conversación actual.
     def _cmd_guardar(self, _):
         if not self._hay_repositorio():
             return
@@ -119,6 +130,7 @@ class ChatConsola:
         self._repositorio.guardar(conversacion)
         self._salida(f"💾 Conversación {conversacion.id} guardada")
 
+    # /cargar <id>: carga una conversación guardada.
     def _cmd_cargar(self, argumento):
         if not self._hay_repositorio():
             return
@@ -130,6 +142,7 @@ class ChatConsola:
         self._salida(f"📂 Conversación {conversacion.id} cargada "
                      f"({len(conversacion)} mensajes)")
 
+    # /lista: muestra las conversaciones guardadas.
     def _cmd_lista(self, _):
         if not self._hay_repositorio():
             return
@@ -141,10 +154,12 @@ class ChatConsola:
         for id_conv in ids:
             self._salida(f"  - {id_conv}")
 
+    # /nueva: empieza una conversación nueva.
     def _cmd_nueva(self, _):
         self._agente.nueva_conversacion()
         self._salida(f"✨ Nueva conversación {self._agente.conversacion.id}")
 
+    # /stats: muestra el resumen del registro de uso.
     def _cmd_stats(self, _):
         if self._registro is None:
             self._salida("⚠ El registro de uso no está disponible.")

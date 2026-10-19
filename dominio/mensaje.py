@@ -9,6 +9,7 @@ class Mensaje:
 
     ROLES_VALIDOS = ("usuario", "asistente", "herramienta")
 
+    # Crea el mensaje y valida rol, contenido y fecha (sin fecha, usa la actual).
     def __init__(self, rol, contenido, fecha=None):
         if rol not in self.ROLES_VALIDOS:
             raise ValueError(
@@ -27,24 +28,30 @@ class Mensaje:
         self._contenido = contenido
         self._fecha = fecha
 
+    # Devuelve el rol del mensaje (solo lectura).
     @property
     def rol(self):
         return self._rol
 
+    # Devuelve el texto del mensaje (solo lectura).
     @property
     def contenido(self):
         return self._contenido
 
+    # Devuelve la fecha de creación en formato ISO (solo lectura).
     @property
     def fecha(self):
         return self._fecha
 
+    # Texto que se ve al hacer print(mensaje): [rol] contenido.
     def __str__(self):
         return f"[{self._rol}] {self._contenido}"
 
+    # Convierte el mensaje en un diccionario para guardarlo en JSON.
     def to_dict(self):
         return {"rol": self._rol, "contenido": self._contenido, "fecha": self._fecha}
 
+    # Crea un Mensaje a partir de un diccionario leído del JSON.
     @classmethod
     def from_dict(cls, datos):
         if not isinstance(datos, dict):
@@ -67,6 +74,7 @@ class Conversacion:
     PROPORCION_RESUMEN = 0.25  # the summary uses at most 25 % of the limit
     PREFIJO_RESUMEN = "[Resumen"
 
+    # Crea una conversación vacía con un id único y un límite de tokens.
     def __init__(self, id=None, limite_tokens=500, resumen_automatico=True):
         self.id = id or uuid.uuid4().hex[:8]
         self.__mensajes = []
@@ -74,14 +82,17 @@ class Conversacion:
         self._resumen_automatico = resumen_automatico
         self._veces_resumida = 0
 
+    # Cuántas veces se han resumido los mensajes antiguos (solo lectura).
     @property
     def veces_resumida(self):
         return self._veces_resumida
 
+    # Estima los tokens de una lista de mensajes: nº de palabras × 1,3.
     @staticmethod
     def _tokens(mensajes):
         return round(sum(len(m.contenido.split()) for m in mensajes) * 1.3)
 
+    # Añade un mensaje; cerca del límite resume los antiguos y, si aun así no cabe, lanza LimiteContextoSuperado.
     def agregar(self, mensaje):
         candidatos = self.__mensajes + [mensaje]
         resumida = False
@@ -99,6 +110,7 @@ class Conversacion:
         if resumida:
             self._veces_resumida += 1
 
+    # Sustituye los mensajes antiguos por un resumen y conserva los más recientes.
     def _compactar(self, mensajes, nuevo):
         """Old messages -> one summary + the most recent ones. Keeps as many recent
         messages as possible (MENSAJES_RECIENTES down to 2) while getting back under
@@ -117,6 +129,7 @@ class Conversacion:
                 break
         return mejor
 
+    # Crea el mensaje-resumen con los temas de las preguntas del usuario.
     def _resumir(self, antiguos):
         temas = []
         for mensaje in antiguos:
@@ -130,18 +143,23 @@ class Conversacion:
                        f"{self.PREFIJO_RESUMEN} de {len(antiguos)} mensajes anteriores] "
                        f"Temas: {' '.join(palabras) or 'sin preguntas del usuario'}")
 
+    # Devuelve una copia de la lista para que nadie la modifique desde fuera.
     def get_mensajes(self):
         return list(self.__mensajes)
 
+    # Tokens estimados de toda la conversación.
     def tokens_estimados(self):
         return self._tokens(self.__mensajes)
 
+    # Permite usar len(conversacion): devuelve el número de mensajes.
     def __len__(self):
         return len(self.__mensajes)
 
+    # Convierte la conversación (id y mensajes) en un diccionario para el JSON.
     def to_dict(self):
         return {"id": self.id, "mensajes": [m.to_dict() for m in self.__mensajes]}
 
+    # Reconstruye una conversación a partir del diccionario leído del JSON.
     @classmethod
     def from_dict(cls, datos):
         if not isinstance(datos, dict):
