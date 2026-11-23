@@ -93,6 +93,22 @@ intactos los más recientes (hasta 4, o menos si hace falta para bajar del 80 %)
 - El chat avisa con `🗜 He resumido los mensajes antiguos…`.
 - Se puede desactivar con `Conversacion(resumen_automatico=False)`.
 
+### Reto 2: modelo LLM local (`ModeloLLM`)
+Un modelo real que corre en tu propio ordenador, sin clave de API ni coste por uso.
+
+1. Instala [Ollama](https://ollama.com) (o LM Studio), descarga un modelo y déjalo encendido. Por ejemplo, con Ollama:
+   `ollama pull qwen2.5:7b`
+2. Arranca el chat y cambia al modelo local: `/modelo llm`.
+
+`ModeloLLM(cliente)` hereda de `Modelo` e implementa `responder()`. El `Agente` no cambia: solo conoce `Modelo`.
+- `servicios/cliente_llm.py` (`ClienteLLM`) habla con el servidor por HTTP usando la API compatible con OpenAI (`/v1/chat/completions`). Solo usa biblioteca estándar. Por defecto apunta a Ollama (`http://localhost:11434/v1`, modelo `qwen2.5:7b`). Para cambiarlo sin tocar el código, usa las variables `NEXO_LLM_URL` y `NEXO_LLM_MODELO`. Por ejemplo, para serverMLX:
+  `NEXO_LLM_URL=http://127.0.0.1:8080/v1 NEXO_LLM_MODELO=mlx-community/gemma-4-12B-it-4bit python main.py`
+  Para LM Studio, `NEXO_LLM_URL=http://localhost:1234/v1`. El nombre del modelo tiene que ser el que tiene cargado el servidor; si no coincide, el servidor responde 404.
+- El modelo responde con JSON: `{"respuesta": "..."}` o `{"herramienta": "...", "argumentos": {...}}`. Si el JSON no llega o no se entiende, el texto se muestra tal cual.
+- Los resultados de las herramientas se envían al modelo como mensajes del usuario, así que no hace falta el `tool_call_id` de la API.
+- Si el servidor no está encendido, el chat muestra un aviso y sigue abierto (`ErrorModelo`).
+- Las ejecuciones de herramientas se siguen registrando en `datos/uso.csv`, igual que con el resto de modelos.
+
 ## Diagrama de clases
 
 Solo aparecen los métodos públicos principales. Los detalles están en el código de cada clase.
@@ -201,13 +217,14 @@ classDiagram
 
 ## Nivel alcanzado y uso de la IA
 
-- Nivel alcanzado: 3, con los retos 4 (varias herramientas), 5 (pytest) y 6 (resumen automático).
+- Nivel alcanzado: 3, con los retos 2 (modelo LLM local), 4 (varias herramientas), 5 (pytest) y 6 (resumen automático).
 - Uso de la IA (asistente: Claude Code):
   - El código del proyecto se generó con la IA a partir del enunciado.
   - El diagrama de clases: la IA hizo una primera versión detallada y después, a petición nuestra, una versión simplificada.
   - Los comentarios de una línea encima de cada función los añadió la IA.
   - Las preguntas de reflexión: respondí con mis ideas y la IA me dio pistas.
   - Lo usé también para entender conceptos (`@property`, dónde se crea el `Agente`, para qué sirve `ModeloEco`).
+  - Reto 2 (`ModeloLLM` con modelo local): el código se generó con Claude Code, a partir de la decisión de usar un modelo local para no pagar una API.
 
 ## Preguntas de reflexión de Zadkiel De Jesus
 

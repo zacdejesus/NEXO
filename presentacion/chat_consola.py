@@ -1,11 +1,16 @@
 from dominio.excepciones import ErrorAgente, LimiteContextoSuperado
-from dominio.modelos import ModeloEco, ModeloReglas
+from dominio.modelos import ModeloEco, ModeloLLM, ModeloReglas
+from servicios.cliente_llm import ClienteLLM
 
 
 class ChatConsola:
     """Capa de presentación: lee, delega en el agente y muestra."""
 
-    MODELOS = {"eco": ModeloEco, "reglas": ModeloReglas}
+    MODELOS = {
+        "eco": ModeloEco,
+        "reglas": ModeloReglas,
+        "llm": lambda: ModeloLLM(ClienteLLM()),  # modelo local (Ollama o LM Studio)
+    }
 
     # Recibe el agente y lo opcional; entrada y salida se pueden cambiar en las pruebas.
     def __init__(self, agente, repositorio=None, registro_uso=None,
@@ -88,14 +93,15 @@ class ChatConsola:
         for linea in self._agente.listar_herramientas():
             self._salida(linea)
 
-    # /modelo eco|reglas: cambia de modelo.
+    # /modelo eco|reglas|llm: cambia de modelo.
     def _cmd_modelo(self, argumento):
-        clase = self.MODELOS.get(argumento.lower())
-        if clase is None:
-            self._salida("Uso: /modelo eco | /modelo reglas")
+        fabrica = self.MODELOS.get(argumento.lower())
+        if fabrica is None:
+            self._salida("Uso: /modelo eco | /modelo reglas | /modelo llm")
             return
-        self._agente.cambiar_modelo(clase())
-        self._salida(f"✔ Modelo cambiado a {clase.__name__}")
+        modelo = fabrica()
+        self._agente.cambiar_modelo(modelo)
+        self._salida(f"✔ Modelo cambiado a {type(modelo).__name__}")
 
     # /salir: termina el chat.
     def _cmd_salir(self, _):

@@ -1,3 +1,4 @@
+import json
 import re
 import unicodedata
 
@@ -167,3 +168,77 @@ class ModeloReglas(Modelo):
         if " = " in contenido:
             return f"{contenido}."
         return f"Según nuestra información: {contenido}"
+
+
+class ModeloLLM(Modelo):
+    """Modelo basado en un LLM local. El cliente (inyectado) hace la llamada de red;
+    aquí solo se prepara el prompt y se interpreta la respuesta, en JSON."""
+
+    # Argumentos que espera cada herramienta, para que el modelo los pida bien.
+    PARAMETROS = {
+        "calculadora": "a (número), b (número), operacion (+, -, *, /)",
+        "conversor_moneda": "cantidad (número), origen (USD, EUR, GBP o JPY), destino (USD, EUR, GBP o JPY)",
+        "buscador_faq": "pregunta (texto)",
+    }
+    # Roles de NEXO -> roles de la API. Los resultados de herramientas van como mensajes del usuario.
+    ROL_API = {"usuario": "user", "asistente": "assistant"}
+
+    # Recibe el cliente que habla con el servidor del modelo.
+    def __init__(self, cliente, nombre="llm"):
+        super().__init__(nombre)
+        self._cliente = cliente
+
+    # Manda la conversación al modelo y convierte su texto en una Respuesta.
+    def responder(self, conversacion, herramientas) -> Respuesta:
+        mensajes = [{"role": "system", "content": self._instrucciones(herramientas)}]
+        mensajes += [self._a_api(m) for m in conversacion.get_mensajes()]
+        return self._interpretar(self._cliente.completar(mensajes))
+
+    # Prompt de sistema: el formato JSON que debe devolver y la lista de herramientas.
+    def _instrucciones(self, herramientas):
+        lineas = [
+            "Eres NEXO, el asistente de atención al cliente de la tienda TechNova.",
+            "Responde SIEMPRE con un único objeto JSON y nada más, en una de estas dos formas:",
+            '{"respuesta": "texto para el usuario"}',
+            '{"herramienta": "nombre", "argumentos": {...}}',
+            "Usa una herramienta solo si hace falta. Si ya tienes el resultado de una herramienta, responde con \"respuesta\".",
+            "Herramientas disponibles:",
+        ]
+        for h in herramientas:
+            argumentos = self.PARAMETROS.get(h.nombre, "sin argumentos")
+            lineas.append(f"- {h.nombre}: {h.descripcion}. Argumentos: {argumentos}")
+        return "\n".join(lineas)
+
+    # Traduce un mensaje de NEXO al formato de mensajes de la API.
+    def _a_api(self, mensaje):
+        if mensaje.rol == "herramienta":
+            return {"role": "user", "content": f"Resultado de la herramienta: {mensaje.contenido}"}
+        return {"role": self.ROL_API[mensaje.rol], "content": mensaje.contenido}
+
+    # Si el JSON pide una herramienta, devuelve esa llamada; si no, devuelve el texto como respuesta.
+    def _interpretar(self, texto):
+        datos = self._extraer_json(texto)
+        if isinstance(datos, dict):
+            herramienta = datos.get("herramienta")
+            argumentos = datos.get("argumentos") or {}
+            if isinstance(herramienta, str) and herramienta and isinstance(argumentos, dict):
+                return Respuesta(herramienta=herramienta, argumentos=argumentos)
+            if isinstance(datos.get("respuesta"), str):
+                texto = datos["respuesta"]
+            else:
+                texto = texto.strip()
+        texto = texto.strip()
+        if not texto:  # el modelo ha devuelto una respuesta vacía
+            return Respuesta(texto="No he podido generar una respuesta. ¿Puedes reformularlo?")
+        return Respuesta(texto=texto)
+
+    # Busca el primer objeto JSON dentro del texto (el modelo a veces añade texto alrededor).
+    @staticmethod
+    def _extraer_json(texto):
+        inicio, fin = texto.find("{"), texto.rfind("}")
+        if inicio == -1 or fin <= inicio:
+            return None
+        try:
+            return json.loads(texto[inicio:fin + 1])
+        except json.JSONDecodeError:
+            return None
