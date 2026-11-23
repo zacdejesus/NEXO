@@ -8,8 +8,11 @@ Agente de IA "de juguete" en Python con arquitectura por capas. El programa solo
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt   # pytest
 python main.py                    # desde la raíz del proyecto
-pytest                            # pruebas (65)
+pytest                            # todas las pruebas (88)
+pytest tests/dominio/test_modelo_llm.py   # una sola carpeta o archivo
 ```
+
+Las pruebas no necesitan servidor ni modelo: el modelo y el cliente se prueban con respuestas falsas. Hay que ejecutar `pytest` desde la raíz del proyecto (donde está `pytest.ini`). El programa `python main.py` sí usa el modelo local solo si lo activas con `/modelo llm`; por defecto usa el modelo de reglas y no hace falta nada más.
 
 ## Estructura
 
