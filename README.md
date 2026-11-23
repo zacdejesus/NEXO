@@ -94,20 +94,71 @@ intactos los más recientes (hasta 4, o menos si hace falta para bajar del 80 %)
 - Se puede desactivar con `Conversacion(resumen_automatico=False)`.
 
 ### Reto 2: modelo LLM local (`ModeloLLM`)
-Un modelo real que corre en tu propio ordenador, sin clave de API ni coste por uso.
+Un modelo de lenguaje que corre en tu propio ordenador: sin clave de API y sin coste por uso.
 
-1. Instala [Ollama](https://ollama.com) (o LM Studio), descarga un modelo y déjalo encendido. Por ejemplo, con Ollama:
-   `ollama pull qwen2.5:7b`
-2. Arranca el chat y cambia al modelo local: `/modelo llm`.
-
-`ModeloLLM(cliente)` hereda de `Modelo` e implementa `responder()`. El `Agente` no cambia: solo conoce `Modelo`.
-- `servicios/cliente_llm.py` (`ClienteLLM`) habla con el servidor por HTTP usando la API compatible con OpenAI (`/v1/chat/completions`). Solo usa biblioteca estándar. Por defecto apunta a Ollama (`http://localhost:11434/v1`, modelo `qwen2.5:7b`). Para cambiarlo sin tocar el código, usa las variables `NEXO_LLM_URL` y `NEXO_LLM_MODELO`. Por ejemplo, para serverMLX:
-  `NEXO_LLM_URL=http://127.0.0.1:8080/v1 NEXO_LLM_MODELO=mlx-community/gemma-4-12B-it-4bit python main.py`
-  Para LM Studio, `NEXO_LLM_URL=http://localhost:1234/v1`. El nombre del modelo tiene que ser el que tiene cargado el servidor; si no coincide, el servidor responde 404.
-- El modelo responde con JSON: `{"respuesta": "..."}` o `{"herramienta": "...", "argumentos": {...}}`. Si el JSON no llega o no se entiende, el texto se muestra tal cual.
+#### Cómo funciona
+- `ModeloLLM(cliente)` hereda de `Modelo` e implementa `responder()`. El `Agente` no cambia: solo conoce `Modelo`.
+- `servicios/cliente_llm.py` (`ClienteLLM`) habla con el servidor por HTTP usando la API compatible con OpenAI (`/v1/chat/completions`). Solo usa biblioteca estándar: no hay dependencias nuevas.
+- El modelo responde en JSON, en una de estas dos formas: `{"respuesta": "..."}` o `{"herramienta": "...", "argumentos": {...}}`. Si el JSON no llega o no se entiende, el texto se muestra tal cual. Si la respuesta llega vacía, el chat avisa en vez de mostrar una línea en blanco.
 - Los resultados de las herramientas se envían al modelo como mensajes del usuario, así que no hace falta el `tool_call_id` de la API.
-- Si el servidor no está encendido, el chat muestra un aviso y sigue abierto (`ErrorModelo`).
+- Si el servidor no responde, el chat muestra un aviso (`ErrorModelo`) y sigue abierto.
 - Las ejecuciones de herramientas se siguen registrando en `datos/uso.csv`, igual que con el resto de modelos.
+
+#### Configuración
+Dos variables de entorno eligen el servidor y el modelo. Si no se definen, NEXO usa Ollama en `http://localhost:11434/v1` con el modelo `qwen2.5:7b`.
+
+| Variable | Qué es | Ejemplo |
+|---|---|---|
+| `NEXO_LLM_URL` | Dirección base de la API | `http://127.0.0.1:8080/v1` |
+| `NEXO_LLM_MODELO` | Nombre del modelo cargado en el servidor | `mlx-community/gemma-4-12B-it-4bit` |
+
+El nombre del modelo tiene que coincidir con el que tiene cargado el servidor. Si no coincide, el servidor responde 404.
+
+#### Opción A: serverMLX (Mac con Apple Silicon)
+serverMLX es un servidor local que usa MLX, la librería de Apple para correr modelos en el chip. Expone `http://127.0.0.1:8080/v1` y solo acepta conexiones desde tu máquina.
+
+Requisitos: `uv` instalado y el modelo descargado (`uv run hf download mlx-community/gemma-4-12B-it-4bit`, desde la carpeta del proyecto).
+
+```bash
+cd ruta/a/serverMLX
+./start.sh                                   # arranca y espera a que responda (hasta 240 s)
+curl -s http://127.0.0.1:8080/v1/models      # comprueba que está en marcha
+
+cd ruta/a/NEXO
+NEXO_LLM_URL=http://127.0.0.1:8080/v1 NEXO_LLM_MODELO=mlx-community/gemma-4-12B-it-4bit python main.py
+
+cd ruta/a/serverMLX
+./stop.sh                                    # lo para y libera la memoria
+```
+
+`start.sh` no necesita red porque el modelo ya está en la caché local. Los logs están en `logs/server.log` del proyecto serverMLX.
+
+#### Opción B: Ollama
+```bash
+ollama pull qwen2.5:7b
+python main.py
+```
+
+#### Opción C: LM Studio
+Arranca el servidor local de LM Studio y carga un modelo. Después:
+```bash
+NEXO_LLM_URL=http://localhost:1234/v1 NEXO_LLM_MODELO=<nombre del modelo cargado> python main.py
+```
+
+#### Dentro del chat
+- `/modelo llm` cambia al modelo local.
+- `/modelo reglas` vuelve al modelo de reglas.
+
+#### Problemas conocidos
+- Nombre de modelo distinto al cargado: error 404 con un aviso claro.
+- Respuestas vacías: el chat avisa. Si vuelve a pasar, hay que revisar el texto que devuelve el modelo.
+- Conversaciones largas: el servidor reprocesa el historial en cada turno y las respuestas tardan más.
+- Las opciones A y B se probaron, la A con el modelo real. La B y la C no se probaron en este equipo.
+
+#### Cómo se hizo
+- Se eligió un modelo local en vez de una API de pago, para no gastar en pruebas.
+- El cliente HTTP está en `servicios/` y se inyecta en el modelo. Así `dominio/` no hace red y sigue sin `print` ni `input`.
+- Pruebas: 88 en total. Las del modelo y el cliente usan clientes falsos. Además se hizo una prueba de punta a punta con un servidor falso y otra con el chat real conectado a serverMLX.
 
 ## Diagrama de clases
 
