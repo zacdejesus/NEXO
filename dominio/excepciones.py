@@ -16,3 +16,7 @@ class LimiteContextoSuperado(ErrorAgente):
 
 class ErrorPersistencia(ErrorAgente):
     """Fallo al guardar o leer datos en disco (JSON/CSV)."""
+
+
+class ErrorModelo(ErrorAgente):
+    """Fallo al hablar con el modelo (servidor apagado, respuesta que no se entiende)."""
