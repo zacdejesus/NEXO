@@ -1,18 +1,52 @@
 # NEXO · asistente de TechNova (Nivel 3: agente pro)
 
-Agente de IA "de juguete" en Python con arquitectura por capas. El programa solo usa la biblioteca estándar; `pytest` hace falta solo para las pruebas.
+Agente de IA "de juguete" en Python con arquitectura por capas. Tiene tres modelos: reglas (sin conexión), Claude Haiku 5.5 de Anthropic (con clave) y un modelo local (Ollama, LM Studio o serverMLX).
 
 ## Ejecución
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt   # pytest
-python main.py                    # desde la raíz del proyecto
-pytest                            # todas las pruebas (88)
-pytest tests/dominio/test_modelo_llm.py   # una sola carpeta o archivo
+pip install -r requirements.txt   # pytest, httpx, python-dotenv, tenacity
+python main.py                    # desde la raíz del proyecto; por defecto usa el modelo de reglas
 ```
 
-Las pruebas no necesitan servidor ni modelo: el modelo y el cliente se prueban con respuestas falsas. Hay que ejecutar `pytest` desde la raíz del proyecto (donde está `pytest.ini`). El programa `python main.py` sí usa el modelo local solo si lo activas con `/modelo llm`; por defecto usa el modelo de reglas y no hace falta nada más.
+Para usar Claude, crea el archivo `.env` en la raíz del proyecto con tu clave (ver la sección Claude más abajo). Sin ese archivo, el resto del programa funciona igual.
+
+### Pruebas
+
+Hay dos suites. Ninguna necesita clave, servidor ni modelo: todo se prueba con respuestas falsas. Ejecútalas desde la raíz del proyecto (donde están `pytest.ini` y `test_modelo.py`).
+
+```bash
+python -m unittest test_modelo.py   # prueba del modelo Claude: validación, registro CSV y reintentos
+pytest                              # todas las pruebas del proyecto (88)
+pytest tests/dominio/test_modelos.py   # un solo archivo
+```
+
+El archivo `test_modelo.py` cubre lo que pedía el ejercicio de la API: un mensaje vacío lanza excepción, la llamada se registra en el CSV con sus tokens y su coste, y un 429 simulado se reintenta cinco veces.
+
+## Claude (Anthropic)
+
+Usa la API de Anthropic con el modelo `claude-haiku-5-5`. Para activarlo:
+
+1. Crea `.env` en la raíz del proyecto con una línea: `LLM_API_KEY=tu_clave`. El archivo está en `.gitignore`, así que no se sube a GitHub.
+2. Arranca `python main.py` y escribe `/modelo claude`.
+
+Qué hace el código:
+- `servicios/cliente_anthropic.py` (`ClienteAnthropic`) llama a la API en streaming con httpx. Cada fragmento de texto aparece en la consola al llegar.
+- Antes de enviar, valida la petición: mensajes no vacíos, el primer mensaje del usuario, roles válidos, `max_tokens > 0` y temperatura entre 0 y 2 si se indica.
+- Reintenta con tenacity solo los errores 429 y 5xx: hasta 5 intentos con espera exponencial. Un 400 o un 401 falla a la primera, con un mensaje que dice qué revisar.
+- `dominio/modelos.py` (`ModeloClaude`) usa tool calling nativo: envía a la API el esquema de cada herramienta (`esquema()`, reto 3) y el modelo pide la que necesita.
+- Cada llamada se anota en `datos/uso_llm.csv` con las columnas `timestamp,question,output_tokens,cost`. El coste se calcula en dólares con los precios de Haiku 5.5: 0,10 USD por millón de tokens de entrada y 0,50 USD por millón de salida, hasta 100 000 tokens por petición. Los precios se tomaron de páginas de terceros y conviene confirmarlos en la web oficial de Anthropic (`platform.claude.com`), porque pueden cambiar.
+
+Este registro va en `datos/uso_llm.csv`, separado de `datos/uso.csv`, porque tiene otras columnas: `uso.csv` guarda las ejecuciones de herramientas.
+
+### Ejercicio: comparar los modelos
+
+```bash
+python comparar_modelos.py
+```
+
+Hace las mismas 10 preguntas a `ModeloReglas` y a `ModeloClaude`, y muestra las respuestas y los segundos que tardó cada una. Las conclusiones están en `docs/conclusiones.md`. Gasta menos de un centavo de dólar con Haiku.
 
 ## Estructura
 
@@ -271,7 +305,7 @@ classDiagram
 
 ## Nivel alcanzado y uso de la IA
 
-- Nivel alcanzado: 3, con los retos 2 (modelo LLM local), 4 (varias herramientas), 5 (pytest) y 6 (resumen automático).
+- Nivel alcanzado: 3, con los retos 2 (modelo LLM local y Claude), 3 (esquema de herramientas en JSON Schema), 4 (varias herramientas), 5 (pytest) y 6 (resumen automático).
 - Uso de la IA (asistente: Claude Code):
   - El código del proyecto se generó con la IA a partir del enunciado.
   - El diagrama de clases: la IA hizo una primera versión detallada y después, a petición nuestra, una versión simplificada.

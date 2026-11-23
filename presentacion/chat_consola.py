@@ -1,5 +1,7 @@
 from dominio.excepciones import ErrorAgente, LimiteContextoSuperado
-from dominio.modelos import ModeloEco, ModeloLLM, ModeloReglas
+from dominio.modelos import ModeloClaude, ModeloEco, ModeloLLM, ModeloReglas
+from persistencia.registro_llm import RegistroLLM
+from servicios.cliente_anthropic import ClienteAnthropic
 from servicios.cliente_llm import ClienteLLM
 
 
@@ -9,17 +11,20 @@ class ChatConsola:
     MODELOS = {
         "eco": ModeloEco,
         "reglas": ModeloReglas,
-        "llm": lambda: ModeloLLM(ClienteLLM()),  # modelo local (Ollama o LM Studio)
+        "llm": lambda: ModeloLLM(ClienteLLM()),  # modelo local (Ollama, LM Studio o serverMLX)
     }
 
-    # Recibe el agente y lo opcional; entrada y salida se pueden cambiar en las pruebas.
+    # Recibe el agente y lo opcional; entrada, salida y escritura se pueden cambiar en las pruebas.
     def __init__(self, agente, repositorio=None, registro_uso=None,
-                 entrada=input, salida=print):
+                 entrada=input, salida=print, escribir=None):
         self._agente = agente
         self._repositorio = repositorio
         self._registro = registro_uso
         self._entrada = entrada
         self._salida = salida
+        self._escribir = escribir or (lambda texto: print(texto, end="", flush=True))
+        self._escribiendo = False  # True mientras llegan fragmentos en streaming
+        self._fabricas = dict(self.MODELOS, claude=self._crear_claude)
         self._activo = False
         self._comandos = {
             "/herramientas": self._cmd_herramientas,
@@ -66,15 +71,35 @@ class ChatConsola:
         self._salida("╰──────────────────────────────────────╯")
 
     # Envía el texto al agente y muestra las herramientas usadas y la respuesta.
+    # Si el modelo transmite en streaming, la respuesta ya se ha escrito fragmento a fragmento.
     def _responder(self, texto):
         resumida_antes = self._agente.conversacion.veces_resumida
-        respuesta = self._agente.procesar(texto)
+        self._escribiendo = False
+        try:
+            respuesta = self._agente.procesar(texto)
+        finally:
+            transmitida = self._escribiendo
+            if transmitida:
+                self._salida("")  # cierra la línea que se había ido escribiendo
+            self._escribiendo = False
         for nombre, argumentos in self._agente.herramientas_usadas:
             args = ", ".join(f"{k}={v!r}" for k, v in argumentos.items())
             self._salida(f"🔧 {nombre}({args})")
         if self._agente.conversacion.veces_resumida > resumida_antes:
             self._salida("🗜 He resumido los mensajes antiguos para no superar el límite de tokens")
-        self._salida(f"NEXO > {respuesta}")
+        if not transmitida:
+            self._salida(f"NEXO > {respuesta}")
+
+    # Recibe un fragmento de texto del modelo y lo escribe en la consola al momento.
+    def _fragmento(self, fragmento):
+        if not self._escribiendo:
+            self._escribir("NEXO > ")
+            self._escribiendo = True
+        self._escribir(fragmento)
+
+    # Crea el modelo Claude con streaming hacia la consola y registro de tokens y coste.
+    def _crear_claude(self):
+        return ModeloClaude(ClienteAnthropic(al_fragmento=self._fragmento, registro=RegistroLLM()))
 
     # Separa el comando de su argumento y llama a la función que le toca.
     def _ejecutar_comando(self, texto):
@@ -95,9 +120,9 @@ class ChatConsola:
 
     # /modelo eco|reglas|llm: cambia de modelo.
     def _cmd_modelo(self, argumento):
-        fabrica = self.MODELOS.get(argumento.lower())
+        fabrica = self._fabricas.get(argumento.lower())
         if fabrica is None:
-            self._salida("Uso: /modelo eco | /modelo reglas | /modelo llm")
+            self._salida("Uso: /modelo eco | /modelo reglas | /modelo llm | /modelo claude")
             return
         modelo = fabrica()
         self._agente.cambiar_modelo(modelo)

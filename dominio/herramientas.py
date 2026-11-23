@@ -34,6 +34,9 @@ def _normalizar(texto):
 class Herramienta:
     """Clase base de todas las herramientas que puede usar el agente."""
 
+    # Parámetros que acepta la herramienta, en JSON Schema. Cada hija lo sobrescribe.
+    PARAMETROS_SCHEMA = {"type": "object", "properties": {}, "required": []}
+
     # Guarda el nombre y la descripción de la herramienta.
     def __init__(self, nombre, descripcion):
         self.nombre = nombre
@@ -43,6 +46,14 @@ class Herramienta:
     def ejecutar(self, **kwargs) -> str:
         raise NotImplementedError("Cada herramienta debe implementar ejecutar()")
 
+    # Descripción de la herramienta en el formato que piden las APIs de tool calling (Anthropic).
+    def esquema(self) -> dict:
+        return {
+            "name": self.nombre,
+            "description": self.descripcion,
+            "input_schema": self.PARAMETROS_SCHEMA,
+        }
+
     # Texto con el que se muestra la herramienta en /herramientas.
     def __str__(self):
         return f"🔧 {self.nombre}: {self.descripcion}"
@@ -50,6 +61,15 @@ class Herramienta:
 
 class Calculadora(Herramienta):
     OPERACIONES = ("+", "-", "*", "/")
+    PARAMETROS_SCHEMA = {
+        "type": "object",
+        "properties": {
+            "a": {"type": "number", "description": "Primer número"},
+            "b": {"type": "number", "description": "Segundo número"},
+            "operacion": {"type": "string", "enum": ["+", "-", "*", "/"], "description": "Operación"},
+        },
+        "required": ["a", "b", "operacion"],
+    }
 
     # Crea la calculadora con su nombre y descripción.
     def __init__(self):
@@ -79,6 +99,15 @@ class Calculadora(Herramienta):
 
 class ConversorMoneda(Herramienta):
     TASAS_A_EUR = {"EUR": 1.0, "USD": 0.92, "GBP": 1.17, "JPY": 0.0062}
+    PARAMETROS_SCHEMA = {
+        "type": "object",
+        "properties": {
+            "cantidad": {"type": "number", "description": "Cantidad a convertir"},
+            "origen": {"type": "string", "enum": ["EUR", "USD", "GBP", "JPY"], "description": "Moneda de origen"},
+            "destino": {"type": "string", "enum": ["EUR", "USD", "GBP", "JPY"], "description": "Moneda de destino"},
+        },
+        "required": ["cantidad", "origen", "destino"],
+    }
 
     # Crea el conversor con su nombre y descripción.
     def __init__(self):
@@ -104,6 +133,13 @@ class ConversorMoneda(Herramienta):
 
 
 class BuscadorFAQ(Herramienta):
+    PARAMETROS_SCHEMA = {
+        "type": "object",
+        "properties": {
+            "pregunta": {"type": "string", "description": "Pregunta del cliente"},
+        },
+        "required": ["pregunta"],
+    }
     FAQ = {
         "envio envios enviar plazo dias tarda tardan": "Los envíos tardan 24-48 h en península y 3-5 días en islas.",
         "devolucion devoluciones devolver garantia": "Tienes 30 días para devolver el producto sin dar explicaciones.",

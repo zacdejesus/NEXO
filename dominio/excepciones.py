@@ -20,3 +20,7 @@ class ErrorPersistencia(ErrorAgente):
 
 class ErrorModelo(ErrorAgente):
     """Fallo al hablar con el modelo (servidor apagado, respuesta que no se entiende)."""
+
+
+class PeticionInvalida(ErrorModelo, ValueError):
+    """La petición al modelo no cumple las reglas (sin mensajes, rol, max_tokens o temperatura)."""

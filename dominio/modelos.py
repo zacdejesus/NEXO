@@ -242,3 +242,54 @@ class ModeloLLM(Modelo):
             return json.loads(texto[inicio:fin + 1])
         except json.JSONDecodeError:
             return None
+
+
+class ModeloClaude(Modelo):
+    """Modelo de Anthropic (Claude Haiku). Usa tool calling nativo: el modelo recibe el esquema
+    de cada herramienta y pide la que necesita. El cliente (inyectado) hace la llamada de red."""
+
+    SYSTEM = (
+        "Eres NEXO, el asistente de atención al cliente de la tienda TechNova. "
+        "Responde en español, de forma breve y amable. "
+        "No uses Markdown: ni negritas, ni asteriscos, ni títulos; el texto se muestra en una consola de texto. "
+        "Usa una herramienta solo si necesitas datos para responder. "
+        "Si una herramienta devuelve un error, explícaselo al cliente y pide los datos que falten."
+    )
+
+    # Recibe el cliente que habla con la API de Anthropic.
+    def __init__(self, cliente, nombre="claude"):
+        super().__init__(nombre)
+        self._cliente = cliente
+
+    # Manda la conversación y las herramientas al modelo, y convierte su respuesta en una Respuesta.
+    def responder(self, conversacion, herramientas) -> Respuesta:
+        datos = self._cliente.completar(
+            self._a_api(conversacion.get_mensajes()),
+            herramientas=[h.esquema() for h in herramientas],
+            system=self.SYSTEM,
+        )
+        if datos.get("herramienta"):
+            return Respuesta(herramienta=datos["herramienta"], argumentos=datos.get("argumentos") or {})
+        texto = (datos.get("texto") or "").strip()
+        if not texto:
+            return Respuesta(texto="No he podido generar una respuesta. ¿Puedes reformularlo?")
+        return Respuesta(texto=texto)
+
+    # Traduce los mensajes de NEXO al formato de la API. Une los mensajes seguidos del mismo rol
+    # y quita los del principio que no sean del usuario, porque la API exige que empiece por el usuario.
+    @staticmethod
+    def _a_api(mensajes):
+        api = []
+        for mensaje in mensajes:
+            if mensaje.rol == "herramienta":
+                rol, contenido = "user", f"Resultado de la herramienta: {mensaje.contenido}"
+            else:
+                rol = "user" if mensaje.rol == "usuario" else "assistant"
+                contenido = mensaje.contenido
+            if api and api[-1]["role"] == rol:
+                api[-1]["content"] += "\n" + contenido
+            else:
+                api.append({"role": rol, "content": contenido})
+        while api and api[0]["role"] != "user":
+            api.pop(0)
+        return api
